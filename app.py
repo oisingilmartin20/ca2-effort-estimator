@@ -6,144 +6,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from estimator import estimate_ticket
+from estimator import Estimate, estimate_ticket
+from ui.theme import setup_page
 
 load_dotenv()
 
 DATA_PATH = Path(__file__).parent / "data" / "tawos_sample.csv"
 
-st.set_page_config(
-    page_title="Effort Estimator",
-    page_icon=":bar_chart:",
-    layout="wide",
-)
-
-# --- Jira-style theming -----------------------------------------------------
-st.markdown(
-    """
-    <style>
-      :root {
-        --jira-blue: #0052CC;
-        --jira-blue-dark: #0747A6;
-        --jira-bg: #F4F5F7;
-        --jira-card: #FFFFFF;
-        --jira-border: #DFE1E6;
-        --jira-text: #172B4D;
-        --jira-muted: #5E6C84;
-      }
-      .stApp { background: var(--jira-bg); color: var(--jira-text); }
-      .block-container { padding-top: 3.5rem; color: var(--jira-text); }
-      header[data-testid="stHeader"] { background: transparent; }
-      .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp h4,
-      .stApp h5, .stApp h6, .stApp li, .stApp label, .stApp span,
-      .stApp div[data-testid="stMarkdownContainer"],
-      .stApp div[data-testid="stMarkdownContainer"] * {
-        color: var(--jira-text);
-      }
-      .detail-card, .detail-card * { color: var(--jira-text) !important; }
-      .estimate-card, .estimate-card * { color: var(--jira-text); }
-      .subtask-card, .subtask-card b { color: var(--jira-text); }
-      .stSelectbox label, .stSelectbox div { color: var(--jira-text); }
-      div[data-baseweb="select"] *, div[data-baseweb="select"] input {
-        color: var(--jira-text) !important;
-      }
-      div[data-baseweb="popover"] li { color: var(--jira-text) !important; }
-      .jira-header {
-        background: var(--jira-blue);
-        color: white;
-        padding: 12px 18px;
-        border-radius: 6px;
-        margin-bottom: 14px;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .jira-header .logo {
-        background: white;
-        color: var(--jira-blue);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 700;
-        font-size: 13px;
-      }
-      .ticket-row {
-        background: var(--jira-card);
-        border: 1px solid var(--jira-border);
-        border-radius: 4px;
-        padding: 10px 12px;
-        margin-bottom: 6px;
-        cursor: pointer;
-      }
-      .ticket-row.active {
-        border-left: 3px solid var(--jira-blue);
-        background: #DEEBFF;
-      }
-      .ticket-key {
-        font-family: 'Consolas', monospace;
-        font-size: 12px;
-        color: var(--jira-muted);
-      }
-      .ticket-title { color: var(--jira-text); font-weight: 500; }
-      .pill {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 3px;
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        margin-right: 6px;
-      }
-      .pill-story { background: #E3FCEF; color: #006644; }
-      .pill-bug   { background: #FFEBE6; color: #BF2600; }
-      .pill-task  { background: #DEEBFF; color: #0747A6; }
-      .pill-epic  { background: #EAE6FF; color: #403294; }
-      .detail-card {
-        background: var(--jira-card);
-        border: 1px solid var(--jira-border);
-        border-radius: 6px;
-        padding: 18px 22px;
-      }
-      .estimate-card {
-        background: #FFFFFF;
-        border: 1px solid var(--jira-border);
-        border-left: 4px solid var(--jira-blue);
-        padding: 18px 22px;
-        border-radius: 4px;
-        margin-top: 24px;
-      }
-      .detail-card { margin-bottom: 18px; }
-      div[data-testid="stVerticalBlock"] > div { gap: 0.6rem; }
-      .sp-badge {
-        background: var(--jira-blue);
-        color: white;
-        padding: 6px 14px;
-        border-radius: 18px;
-        font-weight: 700;
-        font-size: 18px;
-      }
-      .subtask-card {
-        background: white;
-        border: 1px solid var(--jira-border);
-        border-radius: 4px;
-        padding: 10px 12px;
-        margin-top: 6px;
-      }
-      .stButton button {
-        background: var(--jira-blue);
-        color: white;
-        border: none;
-        font-weight: 600;
-      }
-      .stButton button:hover { background: var(--jira-blue-dark); color: white; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+setup_page("backlog")
 
 
 @st.cache_data
@@ -163,21 +38,75 @@ def pill_for(issue_type: str) -> str:
 
 def confidence_band(c: float) -> tuple[str, str]:
     if c >= 0.75:
-        return "High", "#36B37E"
+        return "High", "#C6F09E"
     if c >= 0.55:
-        return "Medium", "#FFAB00"
-    return "Low", "#DE350B"
+        return "Medium", "#F0C89E"
+    return "Low", "#E8A080"
 
 
-# --- Header -----------------------------------------------------------------
-st.markdown(
-    '<div class="jira-header">'
-    '<span class="logo">EE</span>'
-    'Effort Estimator &nbsp;/&nbsp; TAWOS Backlog'
-    '</div>',
-    unsafe_allow_html=True,
-)
+def build_comparison_df(
+    estimates: dict[str, Estimate],
+    tickets: pd.DataFrame,
+) -> pd.DataFrame:
+    rows = []
+    for issue_key, est in estimates.items():
+        match = tickets[tickets["issue_key"] == issue_key]
+        if match.empty:
+            continue
+        ticket = match.iloc[0]
+        rows.append({
+            "issue_key": issue_key,
+            "title": ticket["title"],
+            "project": ticket["project"],
+            "actual": int(ticket["actual_story_points"]),
+            "estimated": int(est.story_points),
+        })
+    if not rows:
+        return pd.DataFrame(
+            columns=["issue_key", "title", "project", "actual", "estimated"],
+        )
+    return (
+        pd.DataFrame(rows)
+        .sort_values(["project", "issue_key"])
+        .reset_index(drop=True)
+    )
 
+
+def render_comparison_chart(df: pd.DataFrame) -> alt.Chart:
+    long_df = df.melt(
+        id_vars=["issue_key", "project", "title"],
+        value_vars=["actual", "estimated"],
+        var_name="type",
+        value_name="story_points",
+    )
+    long_df["type"] = long_df["type"].map({
+        "actual": "Actual",
+        "estimated": "Estimated",
+    })
+
+    return (
+        alt.Chart(long_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("issue_key:N", title="Ticket"),
+            y=alt.Y("story_points:Q", title="Story Points"),
+            xOffset="type:N",
+            color=alt.Color(
+                "type:N",
+                title="",
+                scale=alt.Scale(
+                    domain=["Actual", "Estimated"],
+                    range=["#9EC6F0", "#A09EF0"],
+                ),
+            ),
+            column=alt.Column("project:N", title=None),
+            tooltip=["issue_key", "title", "type", "story_points"],
+        )
+        .properties(height=250)
+    )
+
+
+# --- Backlog UI -------------------------------------------------------------
 tickets = load_tickets()
 
 if "selected_key" not in st.session_state:
@@ -259,7 +188,7 @@ with right:
                 f'<div class="subtask-card">'
                 f'<b>{s.title}</b> &nbsp; '
                 f'<span class="pill pill-task">{s.story_points} SP</span><br>'
-                f'<span style="color:#5E6C84;">{s.reasoning}</span>'
+                f'<span class="text-muted">{s.reasoning}</span>'
                 f'</div>'
                 for s in est.subtasks
             )
@@ -293,7 +222,7 @@ with right:
               <div style="font-weight:600;margin-bottom:4px;">Reasoning</div>
               <div>{est.reasoning}</div>
               {subtasks_html}
-              <div style="margin-top:10px;font-size:12px;color:#5E6C84;">
+              <div class="text-muted" style="margin-top:10px;font-size:12px;">
                 Source: {est.source}
               </div>
             </div>
@@ -302,3 +231,12 @@ with right:
         )
     else:
         st.info("Press *Estimate Effort* to generate a recommendation.")
+
+if st.session_state.estimates:
+    st.divider()
+    st.markdown("##### Estimate vs Actual by Project")
+    comparison_df = build_comparison_df(st.session_state.estimates, tickets)
+    st.altair_chart(
+        render_comparison_chart(comparison_df),
+        use_container_width=True,
+    )

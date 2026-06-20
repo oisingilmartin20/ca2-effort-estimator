@@ -20,9 +20,17 @@ estimator so the UI is fully demoable offline.
 
 ## Layout
 
-- `app.py` — Streamlit UI (Jira-style backlog + ticket detail)
+- `app.py` — Backlog page (ticket list, estimate detail, comparison chart)
+- `pages/About.py` — About page (aim, technology stack, data/training statement)
+- `ui/theme.py` — Shared CSS theme, header, and header navigation links
 - `estimator.py` — LLM call + offline heuristic fallback
 - `data/tawos_sample.csv` — TAWOS-style sample tickets with real story points
+
+## Pages
+
+The app has two pages: **Backlog** (main estimator) and **About** (project
+documentation). Navigate via the header links at the top of each page; the
+Streamlit sidebar is hidden.
 
 ## Swapping the model provider
 
