@@ -145,7 +145,6 @@ def _llm_estimate(ticket: dict, model: str, api_key: str,
             {"role": "user", "content": user},
         ],
         temperature=0.2,
-        response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content or "{}"
     payload = _extract_json(raw)
