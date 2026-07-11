@@ -46,6 +46,16 @@ def _has_text(series: pd.Series) -> int:
     return int((filled.str.strip() != "").sum())
 
 
+def _clean_tawos_text(value: object) -> str:
+    """Strip TAWOS literal quote wrappers from title/description fields."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    text = str(value).strip()
+    while len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        text = text[1:-1].strip()
+    return text
+
+
 def load_issues(database_url: str | None = None) -> pd.DataFrame:
     """Load the full Issue table from MySQL."""
     load_dotenv()
@@ -69,17 +79,21 @@ def load_issues_for_export(
 
 
 def to_nearest_fibonacci(value: float) -> int:
-    """Map a positive story point to the nearest Fibonacci scale value."""
-    best = FIBONACCI[0]
-    best_distance = abs(value - best)
-    for candidate in FIBONACCI[1:]:
-        distance = abs(value - candidate)
-        if distance < best_distance or (
-            distance == best_distance and candidate < best
-        ):
-            best = candidate
-            best_distance = distance
-    return best
+    """Map a positive story point to the Fibonacci scale (higher-bracket rule).
+
+    Exact Fibonacci matches are preserved. Values strictly between two scale
+    points map to the upper bracket (e.g. 10 -> 13, 4 -> 5).
+    """
+    if value <= FIBONACCI[0]:
+        return FIBONACCI[0]
+    if value >= FIBONACCI[-1]:
+        return FIBONACCI[-1]
+    for low, high in zip(FIBONACCI, FIBONACCI[1:]):
+        if value == low:
+            return low
+        if low < value < high:
+            return high
+    return FIBONACCI[-1]
 
 
 def story_point_sample_class(story_point: float, *, include_zero: bool) -> int:
@@ -92,9 +106,9 @@ def story_point_sample_class(story_point: float, *, include_zero: bool) -> int:
 def _pick_description(row: pd.Series) -> str:
     text = row.get("Description_Text")
     if pd.notna(text) and str(text).strip():
-        return str(text)
+        return _clean_tawos_text(text)
     description = row.get("Description")
-    return "" if pd.isna(description) else str(description)
+    return _clean_tawos_text(description)
 
 
 def issues_to_export_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -117,7 +131,7 @@ def issues_to_export_df(df: pd.DataFrame) -> pd.DataFrame:
         project_name = "Unknown" if pd.isna(project) or not str(project).strip() else str(project)
 
         title = row.get("Title")
-        title_text = "" if pd.isna(title) else str(title)
+        title_text = _clean_tawos_text(title)
 
         issue_type = row.get("Type")
         issue_type_text = "" if pd.isna(issue_type) else str(issue_type)

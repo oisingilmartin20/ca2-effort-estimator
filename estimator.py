@@ -15,6 +15,20 @@ from typing import Optional
 FIBONACCI = [1, 2, 3, 5, 8, 13, 21]
 
 
+def snap_to_fibonacci(value: float) -> int:
+    """Map a value to the Fibonacci scale using the higher-bracket rule."""
+    if value <= FIBONACCI[0]:
+        return FIBONACCI[0]
+    if value >= FIBONACCI[-1]:
+        return FIBONACCI[-1]
+    for low, high in zip(FIBONACCI, FIBONACCI[1:]):
+        if value == low:
+            return low
+        if low < value < high:
+            return high
+    return FIBONACCI[-1]
+
+
 @dataclass
 class Subtask:
     title: str
@@ -88,7 +102,7 @@ def _heuristic_estimate(ticket: dict) -> Estimate:
     if any(w in text for w in small_words):
         score -= 2
 
-    sp = min(FIBONACCI, key=lambda f: abs(f - max(1, score)))
+    sp = snap_to_fibonacci(max(1, score))
     confidence = round(0.55 + min(0.25, length_signal / 400), 2)
     complex_flag = sp >= 13
 
@@ -151,7 +165,7 @@ def _llm_estimate(ticket: dict, model: str, api_key: str,
 
     sp = int(payload.get("story_points", 3))
     if sp not in FIBONACCI:
-        sp = min(FIBONACCI, key=lambda f: abs(f - sp))
+        sp = snap_to_fibonacci(float(sp))
 
     subtasks_raw = payload.get("subtasks") or []
     subtasks = [

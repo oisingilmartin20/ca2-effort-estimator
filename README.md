@@ -64,11 +64,13 @@ This writes three files into `data/`:
 | File | Contents |
 | ---- | -------- |
 | `tawos_with_story_points.csv` | All tickets with story points > 0 and ≤ 100 |
-| `tawos_balanced_train.csv` | ~20% balanced subset mapped to nearest Fibonacci value |
+| `tawos_balanced_train.csv` | ~20% balanced subset mapped to Fibonacci scale (higher bracket) |
 | `tawos_balanced_train_with_zero.csv` | Same balanced sampling, but includes zero-point tickets |
 
-Story points are mapped to the nearest Fibonacci value (`1, 2, 3, 5, 8, 13, 21`);
-ties resolve to the lower value. Zero-point tickets are labelled `0`.
+Story points are mapped to the Fibonacci scale (`1, 2, 3, 5, 8, 13, 21`).
+Exact matches are kept; values strictly between two scale points map to the
+**higher** bracket (e.g. `10 → 13`, `4 → 5`). Zero-point tickets are labelled `0`.
+Exported `title` and `description` fields have TAWOS literal quote wrappers stripped.
 
 Point the Streamlit app at an exported CSV via `.env`:
 
