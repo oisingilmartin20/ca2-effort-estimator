@@ -4,6 +4,7 @@ Run with:  streamlit run app.py
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import altair as alt
@@ -16,7 +17,12 @@ from ui.theme import setup_page
 
 load_dotenv()
 
-DATA_PATH = Path(__file__).parent / "data" / "tawos_sample.csv"
+DATA_PATH = Path(
+    os.getenv(
+        "TAWOS_DATA_PATH",
+        str(Path(__file__).parent / "data" / "tawos_sample.csv"),
+    )
+)
 
 setup_page("backlog")
 

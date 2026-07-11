@@ -24,8 +24,12 @@ estimator so the UI is fully demoable offline.
 - `pages/About.py` — About page (aim, technology stack, data/training statement)
 - `ui/theme.py` — Shared CSS theme, header, and header navigation links
 - `estimator.py` — LLM call + offline heuristic fallback
-- `data/tawos_sample.csv` — TAWOS-style sample tickets with real story points
+- `data/tawos_sample.csv` — small demo backlog (14 sample tickets)
+- `data/tawos_with_story_points.csv` — full export of tickets with positive story points
+- `data/tawos_balanced_train.csv` — balanced ~20% training subset (Fibonacci labels)
+- `data/tawos_balanced_train_with_zero.csv` — balanced ~20% training subset including zero-point tickets
 - `scripts/analyze_tawos.py` — CLI summary stats for the full TAWOS MySQL dataset
+- `scripts/export_tawos_training_data.py` — export training CSVs from MySQL
 - `notebooks/tawos_dataset_analysis.ipynb` — Interactive tables and charts for TAWOS dataset analytics
 
 ## Pages
@@ -47,8 +51,33 @@ The CSV schema is:
 issue_key, project, issue_type, title, description, actual_story_points
 ```
 
-Drop a larger export with these columns into `data/tawos_sample.csv` to scale
-up the backlog.
+`data/tawos_sample.csv` remains the default small demo backlog. To generate
+training datasets from the full TAWOS MySQL database:
+
+```bash
+mysql tawos < TAWOS.sql
+python scripts/export_tawos_training_data.py
+```
+
+This writes three files into `data/`:
+
+| File | Contents |
+| ---- | -------- |
+| `tawos_with_story_points.csv` | All tickets with story points > 0 and ≤ 100 |
+| `tawos_balanced_train.csv` | ~20% balanced subset mapped to nearest Fibonacci value |
+| `tawos_balanced_train_with_zero.csv` | Same balanced sampling, but includes zero-point tickets |
+
+Story points are mapped to the nearest Fibonacci value (`1, 2, 3, 5, 8, 13, 21`);
+ties resolve to the lower value. Zero-point tickets are labelled `0`.
+
+Point the Streamlit app at an exported CSV via `.env`:
+
+```
+TAWOS_DATA_PATH=data/tawos_balanced_train.csv
+```
+
+Or drop a custom export with the schema above into `data/tawos_sample.csv` to
+scale up the backlog without changing configuration.
 
 ## Dataset analytics
 
