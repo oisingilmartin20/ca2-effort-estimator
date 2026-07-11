@@ -69,7 +69,8 @@ jupyter lab notebooks/tawos_dataset_analysis.ipynb
 ```
 
 The script prints ticket counts, missing-field stats, description length
-summaries, and priority/story-point distributions. The notebook presents the
-same metrics as tables and seaborn charts, including story point class
-imbalance. Override the connection string in `.env` with `DATABASE_URL` if your
-MySQL host or credentials differ (see `.env.example`).
+summaries, priority/story-point distributions, and a per-project breakdown.
+The notebook presents the same metrics as tables and seaborn charts, including
+story point class imbalance and per-project story-point distribution for the
+top projects. Override the connection string in `.env` with `DATABASE_URL` if
+your MySQL host or credentials differ (see `.env.example`).

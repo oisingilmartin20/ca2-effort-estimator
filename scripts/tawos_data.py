@@ -11,8 +11,16 @@ from sqlalchemy.exc import SQLAlchemyError
 DEFAULT_DATABASE_URL = "mysql+pymysql://root@127.0.0.1/tawos"
 
 ISSUE_QUERY = """
-SELECT Story_Point, Title, Description, Description_Text, Priority
-FROM Issue
+SELECT
+  i.Story_Point,
+  i.Title,
+  i.Description,
+  i.Description_Text,
+  i.Priority,
+  i.Project_ID,
+  p.Name AS Project_Name
+FROM Issue i
+LEFT JOIN Project p ON i.Project_ID = p.ID
 """
 
 
@@ -42,11 +50,27 @@ def compute_summary(df: pd.DataFrame) -> dict[str, int]:
         "total": total,
         "missing_story_point": int(df["Story_Point"].isna().sum()),
         "missing_title": _missing_text(df["Title"]),
-        "missing_description": _missing_text(df["Description"]),
+        "missing_description": _missing_text(df["Description_Text"]),
         "has_priority": has_priority,
         "missing_priority": total - has_priority,
         "unique_story_points": int(df["Story_Point"].nunique(dropna=True)),
     }
+
+
+def project_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """Return ticket and labeled story-point counts per project."""
+    labeled = df["Story_Point"].notna()
+    grouped = (
+        df.assign(_labeled=labeled)
+        .groupby("Project_Name", dropna=False)
+        .agg(total_tickets=("Story_Point", "size"), labeled_tickets=("_labeled", "sum"))
+        .reset_index()
+    )
+    grouped["Project_Name"] = grouped["Project_Name"].fillna("Unknown")
+    grouped["labeled_pct"] = (
+        grouped["labeled_tickets"] / grouped["total_tickets"] * 100
+    ).round(1)
+    return grouped.sort_values("total_tickets", ascending=False).reset_index(drop=True)
 
 
 def _story_point_label(value: object) -> str:
@@ -71,6 +95,18 @@ def story_point_counts_from_series(story_points: pd.Series) -> pd.DataFrame:
 def story_point_counts(df: pd.DataFrame) -> pd.DataFrame:
     """Return story point value counts sorted for display."""
     return story_point_counts_from_series(df["Story_Point"])
+
+
+def story_point_counts_by_project(df: pd.DataFrame, project_name: str) -> pd.DataFrame:
+    """Return rounded story point counts for a single project."""
+    project_df = df[df["Project_Name"] == project_name]
+    return rounded_story_point_counts(project_df)
+
+
+def top_projects_by_labeled_tickets(df: pd.DataFrame, n: int = 5) -> list[str]:
+    """Return project names with the most labeled story-point tickets."""
+    summary = project_summary(df)
+    return summary.nlargest(n, "labeled_tickets")["Project_Name"].tolist()
 
 
 def rounded_story_point_counts(df: pd.DataFrame) -> pd.DataFrame:

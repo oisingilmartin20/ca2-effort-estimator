@@ -12,7 +12,7 @@ import sys
 from dotenv import load_dotenv
 from sqlalchemy.exc import SQLAlchemyError
 
-from tawos_data import DEFAULT_DATABASE_URL, compute_summary, load_issues
+from tawos_data import DEFAULT_DATABASE_URL, compute_summary, load_issues, project_summary
 
 
 def main() -> None:
@@ -38,7 +38,7 @@ def main() -> None:
     print(f"Total tickets:              {summary['total']:,}")
     print(f"Missing Story_Point:        {summary['missing_story_point']:,}")
     print(f"Missing Title:              {summary['missing_title']:,}")
-    print(f"Missing Description:        {summary['missing_description']:,}")
+    print(f"Missing Description_Text:   {summary['missing_description']:,}")
     print(f"Tickets with Priority:      {summary['has_priority']:,}")
     print(f"Missing Priority:           {summary['missing_priority']:,}")
 
@@ -51,6 +51,14 @@ def main() -> None:
     print(f"\nUnique Story_Point values:  {summary['unique_story_points']:,}")
     print("\nStory_Point value counts:")
     print(df["Story_Point"].value_counts(dropna=False).to_string())
+
+    print("\n=== Per-project summary ===\n")
+    projects = project_summary(df)
+    display = projects.copy()
+    display["total_tickets"] = display["total_tickets"].map("{:,}".format)
+    display["labeled_tickets"] = display["labeled_tickets"].map("{:,}".format)
+    display["labeled_pct"] = display["labeled_pct"].map(lambda x: f"{x:.1f}%")
+    print(display.to_string(index=False))
 
 
 if __name__ == "__main__":
