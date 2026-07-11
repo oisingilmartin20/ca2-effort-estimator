@@ -25,6 +25,8 @@ estimator so the UI is fully demoable offline.
 - `ui/theme.py` — Shared CSS theme, header, and header navigation links
 - `estimator.py` — LLM call + offline heuristic fallback
 - `data/tawos_sample.csv` — TAWOS-style sample tickets with real story points
+- `scripts/analyze_tawos.py` — CLI summary stats for the full TAWOS MySQL dataset
+- `notebooks/tawos_dataset_analysis.ipynb` — Interactive tables and charts for TAWOS dataset analytics
 
 ## Pages
 
@@ -47,3 +49,28 @@ issue_key, project, issue_type, title, description, actual_story_points
 
 Drop a larger export with these columns into `data/tawos_sample.csv` to scale
 up the backlog.
+
+## Dataset analytics
+
+Explore summary statistics for the full TAWOS `Issue` table in MySQL.
+
+**Prerequisite:** MySQL running with the `tawos` database loaded:
+
+```bash
+mysql tawos < TAWOS.sql
+```
+
+Install dependencies (if not already done), then run either the CLI or the notebook:
+
+```bash
+pip install -r requirements.txt
+python scripts/analyze_tawos.py
+jupyter lab notebooks/tawos_dataset_analysis.ipynb
+```
+
+The script prints ticket counts, missing-field stats, description length
+summaries, priority/story-point distributions, and a per-project breakdown.
+The notebook presents the same metrics as tables and seaborn charts, including
+story point class imbalance and per-project story-point distribution for the
+top projects. Override the connection string in `.env` with `DATABASE_URL` if
+your MySQL host or credentials differ (see `.env.example`).
