@@ -1,4 +1,4 @@
-# Effort Estimator — CA2 Prototype
+# Effort Estimator - CA2 Prototype
 
 A Jira-styled Streamlit prototype that uses an LLM to estimate story points,
 confidence, and (when needed) a subtask decomposition for software tickets.
@@ -15,22 +15,22 @@ copy .env.example .env   # then fill in OPENAI_API_KEY if you have one
 streamlit run app.py
 ```
 
-The app runs without an API key — it falls back to a deterministic heuristic
+The app runs without an API key - it falls back to a deterministic heuristic
 estimator so the UI is fully demoable offline.
 
 ## Layout
 
-- `app.py` — Backlog page (ticket list, estimate detail, comparison chart)
-- `pages/About.py` — About page (aim, technology stack, data/training statement)
-- `ui/theme.py` — Shared CSS theme, header, and header navigation links
-- `estimator.py` — LLM call + offline heuristic fallback
-- `data/tawos_sample.csv` — small demo backlog (14 sample tickets)
-- `data/tawos_with_story_points.csv` — full export of tickets with positive story points
-- `data/tawos_balanced_train.csv` — balanced ~20% training subset (Fibonacci labels)
-- `data/tawos_balanced_train_with_zero.csv` — balanced ~20% training subset including zero-point tickets
-- `scripts/analyze_tawos.py` — CLI summary stats for the full TAWOS MySQL dataset
-- `scripts/export_tawos_training_data.py` — export training CSVs from MySQL
-- `notebooks/tawos_dataset_analysis.ipynb` — Interactive tables and charts for TAWOS dataset analytics
+- `app.py` - Backlog page (ticket list, estimate detail, comparison chart)
+- `pages/About.py` - About page (aim, technology stack, data/training statement)
+- `ui/theme.py` - Shared CSS theme, header, and header navigation links
+- `estimator.py` - LLM call + offline heuristic fallback
+- `data/tawos_sample.csv` - small demo backlog (14 sample tickets)
+- `data/tawos_with_story_points.csv` - full export of tickets with positive story points
+- `data/tawos_balanced_train.csv` - balanced ~20% training subset (Fibonacci labels)
+- `data/tawos_balanced_train_with_zero.csv` - balanced ~20% training subset including zero-point tickets
+- `scripts/analyze_tawos.py` - CLI summary stats for the full TAWOS MySQL dataset
+- `scripts/export_tawos_training_data.py` - export training CSVs from MySQL
+- `notebooks/tawos_dataset_analysis.ipynb` - Interactive tables and charts for TAWOS dataset analytics
 
 ## Pages
 
