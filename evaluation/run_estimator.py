@@ -1,8 +1,4 @@
-"""Run the estimator over a stratified TAWOS sample and log results for RQ3/RQ4.
-
-Usage:
-    python -m evaluation.run_estimator --per-class 10 --out evaluation/results.csv
-"""
+"""Runs the estimator over a stratified TAWOS sample and dumps the results for RQ3/RQ4."""
 from __future__ import annotations
 
 import argparse

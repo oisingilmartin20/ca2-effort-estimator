@@ -1,11 +1,4 @@
-"""RQ4 step 1: expand generated subtasks into a manual hallucination-review sheet.
-
-One row per subtask, with the original ticket text alongside it and a blank
-`label` column for a human reviewer to fill in.
-
-Usage:
-    python -m evaluation.rq4_prepare_review --results evaluation/results.csv
-"""
+"""RQ4 step 1 - turn generated subtasks into a sheet we can label by hand."""
 from __future__ import annotations
 
 import argparse
@@ -15,10 +8,10 @@ from pathlib import Path
 import pandas as pd
 
 LABEL_GUIDE = (
-    "# Fill in `label` for each row with one of:\n"
-    "#   grounded     - directly stated or clearly implied by the ticket text\n"
-    "#   inferred     - a reasonable elaboration, not explicit but not invented either\n"
-    "#   hallucinated - introduces scope/requirements not implied by the ticket\n"
+    "# label each row:\n"
+    "#   grounded     - actually in the ticket text\n"
+    "#   inferred     - reasonable guess, not explicit but not made up either\n"
+    "#   hallucinated - scope the ticket never mentioned\n"
 )
 
 

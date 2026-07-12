@@ -1,11 +1,7 @@
-"""RQ3: does the model reliably flag complex tickets and decompose them sensibly?
+"""RQ3 - complexity detection and subtask reconciliation.
 
-Ground truth proxy: a ticket is "actually complex" if its real story-point
-value is >= COMPLEX_THRESHOLD. This is a judgement call, not something TAWOS
-labels directly - state it explicitly in the writeup.
-
-Usage:
-    python -m evaluation.rq3_complexity --results evaluation/results.csv
+TAWOS has no "should this have been decomposed" label, so we treat
+actual_story_points >= COMPLEX_THRESHOLD as ground truth. Team agreed on 8.
 """
 from __future__ import annotations
 

@@ -1,8 +1,4 @@
-"""RQ4 step 2: compute hallucination rate from a manually labeled review sheet.
-
-Usage:
-    python -m evaluation.rq4_hallucination --review evaluation/hallucination_review.csv
-"""
+"""RQ4 step 2 - crunch the hallucination rate once the review sheet is labeled."""
 from __future__ import annotations
 
 import argparse
