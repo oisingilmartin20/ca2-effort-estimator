@@ -39,6 +39,7 @@ SELECT
 FROM Issue i
 LEFT JOIN Project p ON i.Project_ID = p.ID
 WHERE i.Story_Point IS NOT NULL
+  AND i.Story_Point >= 0
   AND i.Story_Point <= {max_sp}
   {zero_clause}
 """
@@ -124,6 +125,8 @@ def issues_to_export_df(df: pd.DataFrame) -> pd.DataFrame:
     records: list[dict[str, object]] = []
     for _, row in df.iterrows():
         story_point = float(row["Story_Point"])
+        if story_point < 0:
+            continue
         if story_point == 0:
             actual_story_points = 0
         else:

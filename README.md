@@ -30,6 +30,10 @@ estimator so the UI is fully demoable offline.
 - `data/tawos_balanced_train_with_zero.csv` - balanced ~20% training subset including zero-point tickets
 - `scripts/analyze_tawos.py` - CLI summary stats for the full TAWOS MySQL dataset
 - `scripts/export_tawos_training_data.py` - export training CSVs from MySQL
+- `scripts/create_train_retrieval_split.py` - 80/20 retrieval corpus vs training holdout split
+- `scripts/generate_embeddings.py` - embed retrieval corpus into Postgres pgvector
+- `mcp/tawos_similarity_server.py` - MCP tool for nearest-neighbour ticket search
+- `docker-compose.yml` - Postgres + pgvector for vector retrieval
 - `notebooks/tawos_dataset_analysis.ipynb` - Interactive tables and charts for TAWOS dataset analytics
 
 ## Pages
@@ -105,3 +109,61 @@ The notebook presents the same metrics as tables and seaborn charts, including
 story point class imbalance and per-project story-point distribution for the
 top projects. Override the connection string in `.env` with `DATABASE_URL` if
 your MySQL host or credentials differ (see `.env.example`).
+
+## Vector similarity retrieval (Postgres + MCP)
+
+MySQL remains the TAWOS source of truth. Postgres with pgvector stores embedded
+ticket descriptions for nearest-neighbour retrieval during estimation or analysis.
+
+### Prerequisites
+
+Requires **Python 3.10+** for the MCP server (`fastmcp`). Other scripts in this
+section work on Python 3.9+.
+
+```bash
+pip install -r requirements.txt
+docker compose up -d
+mysql tawos < TAWOS.sql
+```
+
+Copy `.env.example` to `.env` and adjust `POSTGRES_URL` / `EMBEDDING_*` if needed.
+Local embeddings (`EMBEDDING_PROVIDER=local`) work offline; set
+`EMBEDDING_PROVIDER=openai` to use an OpenAI-compatible embedding endpoint.
+
+### 1. Create the 80/20 split
+
+Eligible tickets must have a non-empty description and a non-negative story-point label
+(including zero). The retrieval corpus (80%) is embedded; the training holdout
+(20%) is reserved for model training/eval and is not embedded by default.
+
+```bash
+python scripts/create_train_retrieval_split.py
+```
+
+Outputs:
+
+| File | Contents |
+| ---- | -------- |
+| `data/tawos_retrieval_corpus.csv` | 80% retrieval corpus |
+| `data/tawos_train_holdout.csv` | 20% training holdout |
+
+### 2. Embed the retrieval corpus
+
+```bash
+python scripts/generate_embeddings.py
+```
+
+Use `--limit 100` for a quick smoke test. Use `--force` to re-embed rows for the
+current `EMBEDDING_MODEL`.
+
+### 3. MCP similarity search
+
+Register the server in Cursor via `.cursor/mcp.json`, then use the
+`find_similar_tickets` tool. It embeds a query description and returns the
+closest tickets with `description`, `story_points`, and `similarity`.
+
+Run manually:
+
+```bash
+python mcp/tawos_similarity_server.py
+```
