@@ -50,6 +50,44 @@ def confidence_band(c: float) -> tuple[str, str]:
     return "Low", "#E8A080"
 
 
+def _escape_html(text: str) -> str:
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("\n", "<br>")
+    )
+
+
+def render_similar_tickets_html(est: Estimate) -> str:
+    if not est.similar_tickets:
+        return ""
+
+    rows = []
+    for ticket in est.similar_tickets:
+        title = _escape_html(ticket.title or "Untitled")
+        desc = _escape_html(ticket.description[:300])
+        if len(ticket.description) > 300:
+            desc += "..."
+        rows.append(
+            f'<div class="subtask-card">'
+            f'<b>{_escape_html(ticket.issue_key)}</b> &nbsp; '
+            f'<span class="pill pill-task">{ticket.story_points} SP</span> &nbsp; '
+            f'<span class="text-muted">({ticket.similarity:.0%} similar)</span><br>'
+            f'<span style="font-weight:600;">{title}</span><br>'
+            f'<span class="text-muted">{desc}</span>'
+            f"</div>"
+        )
+
+    return (
+        '<div style="font-weight:600;margin-top:14px;margin-bottom:8px;">'
+        "Similar past tickets</div>"
+        + "".join(rows)
+    )
+
+
 def build_comparison_df(
     estimates: dict[str, Estimate],
     tickets: pd.DataFrame,
@@ -173,14 +211,22 @@ with right:
         run = st.button("Estimate Effort", use_container_width=True)
 
     if run:
-        with st.spinner("Generating estimate..."):
-            est = estimate_ticket({
-                "project": selected["project"],
-                "issue_type": selected["issue_type"],
-                "title": selected["title"],
-                "description": selected["description"],
-            })
-            st.session_state.estimates[selected["issue_key"]] = est
+        if not os.getenv("OPENAI_API_KEY"):
+            st.error("A valid LLM API key is required. Set OPENAI_API_KEY in .env.")
+        elif not os.getenv("ESTIMATOR_MODEL"):
+            st.error("Set ESTIMATOR_MODEL in .env (e.g. olmo-3-7b-instruct).")
+        else:
+            with st.spinner("Generating estimate..."):
+                try:
+                    est = estimate_ticket({
+                        "project": selected["project"],
+                        "issue_type": selected["issue_type"],
+                        "title": selected["title"],
+                        "description": selected["description"],
+                    })
+                    st.session_state.estimates[selected["issue_key"]] = est
+                except Exception as exc:
+                    st.error(f"Estimation failed: {exc}")
 
     est = st.session_state.estimates.get(selected["issue_key"])
     if est:
@@ -202,6 +248,8 @@ with right:
                 '<div style="font-weight:600;margin-top:14px;">'
                 'Suggested decomposition</div>' + rows
             )
+
+        similar_html = render_similar_tickets_html(est)
 
         st.markdown(
             f'''
@@ -225,16 +273,22 @@ with right:
                   </div>
                 </div>
               </div>
+              {similar_html}
               <div style="font-weight:600;margin-bottom:4px;">Reasoning</div>
-              <div>{est.reasoning}</div>
+              <div>{_escape_html(est.reasoning)}</div>
               {subtasks_html}
               <div class="text-muted" style="margin-top:10px;font-size:12px;">
-                Source: {est.source}
+                Source: {_escape_html(est.source)}
               </div>
             </div>
             ''',
             unsafe_allow_html=True,
         )
+        if not est.similar_tickets and "+no-retrieval" in est.source:
+            st.info(
+                "No similar tickets found in vector store. "
+                "Run generate_embeddings.py first."
+            )
     else:
         st.info("Press *Estimate Effort* to generate a recommendation.")
 

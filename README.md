@@ -32,6 +32,7 @@ estimator so the UI is fully demoable offline.
 - `scripts/export_tawos_training_data.py` - export training CSVs from MySQL
 - `scripts/create_train_retrieval_split.py` - 80/20 retrieval corpus vs training holdout split
 - `scripts/generate_embeddings.py` - embed retrieval corpus into Postgres pgvector
+- `scripts/similarity_search.py` - shared pgvector nearest-neighbour lookup
 - `mcp/tawos_similarity_server.py` - MCP tool for nearest-neighbour ticket search
 - `docker-compose.yml` - Postgres + pgvector for vector retrieval
 - `notebooks/tawos_dataset_analysis.ipynb` - Interactive tables and charts for TAWOS dataset analytics
@@ -167,3 +168,27 @@ Run manually:
 ```bash
 python mcp/tawos_similarity_server.py
 ```
+
+### 4. Streamlit estimator with vector retrieval
+
+The backlog estimator (`streamlit run app.py`) uses pgvector neighbours as LLM
+context when you click **Estimate Effort**:
+
+1. Fetches the 10 nearest tickets from Postgres (configurable via `SIMILAR_TICKETS_LIMIT`)
+2. Injects them into the LLM prompt as reference examples
+3. Displays **Similar past tickets** in the estimate card
+
+**Requirements:**
+
+- `OPENAI_API_KEY` and `ESTIMATOR_MODEL` set in `.env` (e.g. Olmo via LM Studio)
+- Postgres running with embeddings ingested (`generate_embeddings.py`)
+
+**Validation:**
+
+1. Run `streamlit run app.py`
+2. Select a ticket and click **Estimate Effort**
+3. Confirm **Similar past tickets** appears with story points and similarity scores
+4. Check the Source line shows `llm:{model}+retrieval` when neighbours were found
+
+If no neighbours are found, the estimate still runs but Source shows `+no-retrieval`
+and an info message suggests running `generate_embeddings.py`.

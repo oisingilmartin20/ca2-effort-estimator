@@ -1,18 +1,25 @@
-"""LLM-backed effort estimator with a deterministic offline fallback.
+"""LLM-backed effort estimator with vector-retrieval context.
 
-The fallback lets the prototype run without an API key (useful for grading
-demos and development), while the live path uses an OpenAI-compatible
-chat completions endpoint.
+Uses pgvector nearest-neighbour tickets as few-shot grounding for the LLM.
+Requires OPENAI_API_KEY; heuristic fallback is kept for tests but not used
+by the Streamlit app.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+
+from similarity_search import SimilarTicket, find_similar_tickets  # noqa: E402
+
 FIBONACCI = [1, 2, 3, 5, 8, 13, 21]
+DESCRIPTION_TRUNCATE = 300
 
 
 def snap_to_fibonacci(value: float) -> int:
@@ -43,11 +50,11 @@ class Estimate:
     reasoning: str
     complex: bool = False
     subtasks: list[Subtask] = field(default_factory=list)
+    similar_tickets: list[SimilarTicket] = field(default_factory=list)
     source: str = "heuristic"
 
     def to_dict(self) -> dict:
-        d = asdict(self)
-        return d
+        return asdict(self)
 
 
 SYSTEM_PROMPT = """You are an experienced agile delivery lead helping a team
@@ -63,6 +70,9 @@ estimate Jira tickets. For each ticket, return a JSON object with:
   title, story_points (Fibonacci), and a one-sentence reasoning.
   Otherwise an empty array.
 
+When similar past tickets are provided, calibrate your estimate against
+their story points and explain how the current ticket compares.
+
 Only output valid JSON. Do not invent functionality that is not implied
 by the ticket description. If the description is vague, lower confidence
 rather than guessing scope."""
@@ -77,13 +87,56 @@ Description:
 
 Estimate this ticket. Respond with JSON only."""
 
+USER_TEMPLATE_WITH_SIMILAR = """Similar past tickets (use as reference, not as copy-paste):
+{similar_examples}
+
+---
+Project: {project}
+Type: {issue_type}
+Title: {title}
+
+Description:
+{description}
+
+Estimate this ticket. Respond with JSON only."""
+
+
+def _truncate(text: str, limit: int = DESCRIPTION_TRUNCATE) -> str:
+    text = text.replace("\n", " ").strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def _format_similar_examples(similar_tickets: list[SimilarTicket]) -> str:
+    lines: list[str] = []
+    for ticket in similar_tickets:
+        title = ticket.title or "Untitled"
+        desc = _truncate(ticket.description)
+        lines.append(
+            f"- {ticket.issue_key} ({ticket.story_points} SP, "
+            f"similarity {ticket.similarity:.2f}): {title} — {desc}"
+        )
+    return "\n".join(lines)
+
+
+def _build_user_prompt(ticket: dict, similar_tickets: list[SimilarTicket]) -> str:
+    kwargs = {
+        "project": ticket.get("project", ""),
+        "issue_type": ticket.get("issue_type", ""),
+        "title": ticket.get("title", ""),
+        "description": ticket.get("description", ""),
+    }
+    if similar_tickets:
+        return USER_TEMPLATE_WITH_SIMILAR.format(
+            similar_examples=_format_similar_examples(similar_tickets),
+            **kwargs,
+        )
+    return USER_TEMPLATE.format(**kwargs)
+
 
 def _heuristic_estimate(ticket: dict) -> Estimate:
-    """Deterministic offline estimator used when no LLM is configured.
-
-    Uses a simple length + keyword signal so the demo is usable end-to-end
-    without network access.
-    """
+    """Deterministic offline estimator used when no LLM is configured."""
     text = f"{ticket.get('title','')} {ticket.get('description','')}".lower()
     length_signal = len(text.split())
 
@@ -138,19 +191,20 @@ def _extract_json(raw: str) -> dict:
     return json.loads(match.group(0))
 
 
-def _llm_estimate(ticket: dict, model: str, api_key: str,
-                  base_url: Optional[str]) -> Estimate:
+def _llm_estimate(
+    ticket: dict,
+    model: str,
+    api_key: str,
+    base_url: Optional[str],
+    similar_tickets: list[SimilarTicket],
+) -> Estimate:
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url \
         else OpenAI(api_key=api_key)
 
-    user = USER_TEMPLATE.format(
-        project=ticket.get("project", ""),
-        issue_type=ticket.get("issue_type", ""),
-        title=ticket.get("title", ""),
-        description=ticket.get("description", ""),
-    )
+    user = _build_user_prompt(ticket, similar_tickets)
+    retrieval_suffix = "+retrieval" if similar_tickets else "+no-retrieval"
 
     resp = client.chat.completions.create(
         model=model,
@@ -183,8 +237,17 @@ def _llm_estimate(ticket: dict, model: str, api_key: str,
         reasoning=str(payload.get("reasoning", "")).strip(),
         complex=bool(payload.get("complex", sp >= 13)),
         subtasks=subtasks,
-        source=f"llm:{model}",
+        similar_tickets=similar_tickets,
+        source=f"llm:{model}{retrieval_suffix}",
     )
+
+
+def _fetch_similar_tickets(description: str) -> list[SimilarTicket]:
+    limit = int(os.getenv("SIMILAR_TICKETS_LIMIT", "10"))
+    try:
+        return find_similar_tickets(description, limit=limit)
+    except Exception:
+        return []
 
 
 def estimate_ticket(ticket: dict) -> Estimate:
@@ -193,14 +256,7 @@ def estimate_ticket(ticket: dict) -> Estimate:
     base_url = os.getenv("OPENAI_BASE_URL") or None
 
     if not api_key:
-        return _heuristic_estimate(ticket)
+        raise ValueError("A valid LLM API key is required")
 
-    try:
-        return _llm_estimate(ticket, model, api_key, base_url)
-    except Exception as exc:
-        fallback = _heuristic_estimate(ticket)
-        fallback.reasoning = (
-            f"LLM call failed ({exc.__class__.__name__}); showing heuristic "
-            f"estimate. {fallback.reasoning}"
-        )
-        return fallback
+    similar_tickets = _fetch_similar_tickets(ticket.get("description", ""))
+    return _llm_estimate(ticket, model, api_key, base_url, similar_tickets)
