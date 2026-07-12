@@ -2,7 +2,7 @@
 
 A Jira-styled Streamlit prototype that uses an LLM to estimate story points,
 confidence, and (when needed) a subtask decomposition for software tickets.
-Sample tickets are drawn from the TAWOS dataset.
+Users create their own backlog tickets and run AI-assisted estimation on them.
 
 ## Setup
 
@@ -20,11 +20,15 @@ estimator so the UI is fully demoable offline.
 
 ## Layout
 
-- `app.py` - Backlog page (ticket list, estimate detail, comparison chart)
+- `app.py` - Backlog page (ticket dropdown, estimate detail)
+- `pages/Ticket.py` - Ticket creation form (Title, Project, Task Type, Description)
 - `pages/About.py` - About page (aim, technology stack, data/training statement)
 - `ui/theme.py` - Shared CSS theme, header, and header navigation links
+- `ui/components.py` - Shared UI helpers (pills, estimate card rendering)
+- `tickets/store.py` - Load/save user tickets to `data/user_tickets.json`
 - `estimator.py` - LLM call + offline heuristic fallback
-- `data/tawos_sample.csv` - small demo backlog (14 sample tickets)
+- `data/user_tickets.json` - user-created backlog (starts empty)
+- `data/tawos_sample.csv` - legacy sample data (used by scripts/embeddings, not the app backlog)
 - `data/tawos_with_story_points.csv` - full export of tickets with positive story points
 - `data/tawos_balanced_train.csv` - balanced ~20% training subset (Fibonacci labels)
 - `data/tawos_balanced_train_with_zero.csv` - balanced ~20% training subset including zero-point tickets
@@ -39,25 +43,26 @@ estimator so the UI is fully demoable offline.
 
 ## Pages
 
-The app has two pages: **Backlog** (main estimator) and **About** (project
-documentation). Navigate via the header links at the top of each page; the
-Streamlit sidebar is hidden.
+The app has three pages: **Ticket** (create backlog items), **Backlog** (select a
+ticket and run the estimator), and **About** (project documentation). Navigate
+via the header links at the top of each page; the Streamlit sidebar is hidden.
+
+### Workflow
+
+1. Open the **Ticket** tab and fill in Title, Project Name, Task Type (Story, Bug, Task, Epic, Improvement, and other common TAWOS types), and Description.
+2. Submit to add the ticket to `data/user_tickets.json` (persists across refreshes).
+3. Switch to **Backlog**, pick the ticket from the dropdown, and click **Estimate Effort**.
 
 ## Swapping the model provider
 
 Set `OPENAI_BASE_URL` in `.env` to point at any OpenAI-compatible endpoint
 (local Ollama, Together, Groq, etc.) and `ESTIMATOR_MODEL` to the model id.
 
-## Replacing the sample data with the full TAWOS dataset
+## TAWOS dataset (scripts and retrieval only)
 
-The CSV schema is:
-
-```
-issue_key, project, issue_type, title, description, actual_story_points
-```
-
-`data/tawos_sample.csv` remains the default small demo backlog. To generate
-training datasets from the full TAWOS MySQL database:
+The Streamlit app no longer loads a prebuilt CSV backlog. TAWOS data files remain
+for dataset analytics, training exports, and vector similarity retrieval during
+estimation.
 
 ```bash
 mysql tawos < TAWOS.sql
@@ -77,14 +82,8 @@ Exact matches are kept; values strictly between two scale points map to the
 **higher** bracket (e.g. `10 → 13`, `4 → 5`). Zero-point tickets are labelled `0`.
 Exported `title` and `description` fields have TAWOS literal quote wrappers stripped.
 
-Point the Streamlit app at an exported CSV via `.env`:
-
-```
-TAWOS_DATA_PATH=data/tawos_balanced_train.csv
-```
-
-Or drop a custom export with the schema above into `data/tawos_sample.csv` to
-scale up the backlog without changing configuration.
+Point exported CSVs at scripts or embeddings workflows as needed. The app backlog
+is managed entirely through the Ticket page and `data/user_tickets.json`.
 
 ## Dataset analytics
 
@@ -171,12 +170,19 @@ python mcp/tawos_similarity_server.py
 
 ### 4. Streamlit estimator with vector retrieval
 
-The backlog estimator (`streamlit run app.py`) uses pgvector neighbours as LLM
-context when you click **Estimate Effort**:
+The backlog estimator (`streamlit run app.py`) uses a **RAG-first** flow when you
+click **Estimate Effort**:
 
-1. Fetches the 10 nearest tickets from Postgres (configurable via `SIMILAR_TICKETS_LIMIT`)
-2. Injects them into the LLM prompt as reference examples
-3. Displays **Similar past tickets** in the estimate card
+1. Embeds the ticket description and fetches the nearest neighbours from Postgres
+   (configurable via `SIMILAR_TICKETS_LIMIT`)
+2. **Computes story points** from a similarity-weighted average of neighbour SPs,
+   snapped to the Fibonacci scale
+3. Sends neighbours + fixed SP to the LLM for **reasoning**, confidence, and
+   optional subtask decomposition
+4. Displays **Similar past tickets** and a RAG baseline line in the estimate card
+
+If no neighbours are found, the LLM estimates story points from ticket details
+only, with **low confidence** and an explicit warning.
 
 **Requirements:**
 
@@ -186,9 +192,8 @@ context when you click **Estimate Effort**:
 **Validation:**
 
 1. Run `streamlit run app.py`
-2. Select a ticket and click **Estimate Effort**
-3. Confirm **Similar past tickets** appears with story points and similarity scores
-4. Check the Source line shows `llm:{model}+retrieval` when neighbours were found
-
-If no neighbours are found, the estimate still runs but Source shows `+no-retrieval`
-and an info message suggests running `generate_embeddings.py`.
+2. Create a ticket and click **Estimate Effort**
+3. Confirm **Similar past tickets** appears and Source shows `rag+llm:{model}`
+4. Confirm the estimate card shows the RAG baseline line (weighted avg → SP)
+5. With Postgres down or empty description, confirm low-confidence fallback
+   and warning when Source shows `+no-retrieval`
