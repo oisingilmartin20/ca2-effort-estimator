@@ -53,6 +53,63 @@ via the header links at the top of each page; the Streamlit sidebar is hidden.
 2. Submit to add the ticket to `data/user_tickets.json` (persists across refreshes).
 3. Switch to **Backlog**, pick the ticket from the dropdown, and click **Estimate Effort**.
 
+## Architecture
+
+### Estimation sequence
+
+When a user clicks **Estimate Effort** on the Backlog page, the app runs a RAG-first
+estimation pipeline: embed the ticket description, retrieve similar TAWOS tickets from
+Postgres, compute story points deterministically, then ask the LLM to explain the result.
+
+Story points are **not** LLM-generated when retrieval succeeds — they are computed in
+`compute_rag_story_points()` from neighbour similarities and snapped to the Fibonacci
+scale. The LLM explains the fixed estimate, sets confidence (capped by RAG confidence),
+and optionally decomposes into subtasks. Estimates are stored in session state only
+(not persisted to disk).
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Backlog as Streamlit Backlog<br/>app.py
+    participant Estimator as estimator.py
+    participant Search as similarity_search.py
+    participant Embed as embedding.py
+    participant PG as Postgres pgvector
+    participant LLM as OpenAI-compatible API
+
+    User->>Backlog: Select ticket and click Estimate Effort
+    Backlog->>Backlog: Validate OPENAI_API_KEY and ESTIMATOR_MODEL
+    Backlog->>Estimator: estimate_ticket(ticket)
+
+    Estimator->>Search: find_similar_tickets(description, limit)
+    Search->>Embed: embed_query(description)
+    Embed-->>Search: query vector
+    Search->>PG: cosine nearest-neighbour query
+    PG-->>Search: similar tickets (key, SP, similarity)
+    Search-->>Estimator: list[SimilarTicket]
+
+    alt Neighbours found (RAG path)
+        Estimator->>Estimator: compute_rag_story_points()<br/>weighted avg → Fibonacci SP
+        Estimator->>LLM: chat completion (fixed SP, neighbours as context)
+        LLM-->>Estimator: JSON: confidence, reasoning, subtasks
+        Estimator-->>Backlog: Estimate (source: rag+llm:model)
+    else No neighbours (fallback)
+        Estimator->>LLM: chat completion (no retrieval context)
+        LLM-->>Estimator: JSON: story_points, confidence, reasoning
+        Estimator-->>Backlog: Estimate (source: llm:model+no-retrieval)
+    end
+
+    Backlog->>Backlog: Store in session_state; render estimate card
+    Backlog-->>User: Story points, confidence, similar tickets, reasoning
+```
+
+**RAG path:** neighbours found → weighted average of neighbour story points snapped to
+Fibonacci → LLM explains with fixed SP (`rag+llm:{model}`).
+
+**Fallback:** no neighbours (empty description, Postgres down, or no embeddings) →
+LLM estimates SP from ticket details only, with capped confidence and a UI warning
+(`llm:{model}+no-retrieval`).
+
 ## Swapping the model provider
 
 Set `OPENAI_BASE_URL` in `.env` to point at any OpenAI-compatible endpoint
