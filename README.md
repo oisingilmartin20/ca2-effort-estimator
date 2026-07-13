@@ -99,7 +99,7 @@ sequenceDiagram
         Estimator-->>Backlog: Estimate (source: llm:model+no-retrieval)
     end
 
-    Backlog->>Backlog: "Store in session_state; render estimate card"
+    Backlog->>Backlog: Store in session_state and render estimate card
     Backlog-->>User: Story points, confidence, similar tickets, reasoning
 ```
 
@@ -128,11 +128,11 @@ python scripts/export_tawos_training_data.py
 
 This writes three files into `data/`:
 
-| File | Contents |
-| ---- | -------- |
-| `tawos_with_story_points.csv` | All tickets with story points > 0 and ≤ 100 |
-| `tawos_balanced_train.csv` | ~20% balanced subset mapped to Fibonacci scale (higher bracket) |
-| `tawos_balanced_train_with_zero.csv` | Same balanced sampling, but includes zero-point tickets |
+| File                                 | Contents                                                        |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `tawos_with_story_points.csv`        | All tickets with story points > 0 and ≤ 100                     |
+| `tawos_balanced_train.csv`           | ~20% balanced subset mapped to Fibonacci scale (higher bracket) |
+| `tawos_balanced_train_with_zero.csv` | Same balanced sampling, but includes zero-point tickets         |
 
 Story points are mapped to the Fibonacci scale (`1, 2, 3, 5, 8, 13, 21`).
 Exact matches are kept; values strictly between two scale points map to the
@@ -199,10 +199,10 @@ python scripts/create_train_retrieval_split.py
 
 Outputs:
 
-| File | Contents |
-| ---- | -------- |
+| File                              | Contents             |
+| --------------------------------- | -------------------- |
 | `data/tawos_retrieval_corpus.csv` | 80% retrieval corpus |
-| `data/tawos_train_holdout.csv` | 20% training holdout |
+| `data/tawos_train_holdout.csv`    | 20% training holdout |
 
 ### 2. Embed the retrieval corpus
 
