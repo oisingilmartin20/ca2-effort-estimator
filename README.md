@@ -86,10 +86,10 @@ sequenceDiagram
     Embed-->>Search: query vector
     Search->>PG: cosine nearest-neighbour query
     PG-->>Search: similar tickets (key, SP, similarity)
-    Search-->>Estimator: list[SimilarTicket]
+    Search-->>Estimator: list of SimilarTicket
 
     alt Neighbours found (RAG path)
-        Estimator->>Estimator: compute_rag_story_points()<br/>weighted avg → Fibonacci SP
+        Estimator->>Estimator: compute_rag_story_points()<br/>weighted avg to Fibonacci SP
         Estimator->>LLM: chat completion (fixed SP, neighbours as context)
         LLM-->>Estimator: JSON: confidence, reasoning, subtasks
         Estimator-->>Backlog: Estimate (source: rag+llm:model)
@@ -99,7 +99,7 @@ sequenceDiagram
         Estimator-->>Backlog: Estimate (source: llm:model+no-retrieval)
     end
 
-    Backlog->>Backlog: Store in session_state; render estimate card
+    Backlog->>Backlog: "Store in session_state; render estimate card"
     Backlog-->>User: Story points, confidence, similar tickets, reasoning
 ```
 
