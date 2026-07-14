@@ -92,6 +92,70 @@ sequenceDiagram
     UI-->>User: Show story points, confidence, and reasoning
 ```
 
+### Estimation pipeline
+
+The sequence diagrams above show message order; this pipeline view shows **stages,
+data stores, and the RAG vs fallback fork** from offline preparation through to the
+estimate shown in the UI.
+
+```mermaid
+flowchart TB
+    subgraph OFFLINE["Offline data preparation"]
+        direction TB
+        MYSQL[(MySQL TAWOS)]
+        EXPORT["export_tawos_training_data.py"]
+        SPLIT["create_train_retrieval_split.py"]
+        CORPUS["tawos_retrieval_corpus.csv<br/>(80%)"]
+        HOLDOUT["tawos_train_holdout.csv<br/>(20%, not embedded)"]
+        EMBED_BATCH["generate_embeddings.py"]
+        PG[(Postgres pgvector<br/>ticket_embeddings)]
+
+        MYSQL --> EXPORT
+        EXPORT --> SPLIT
+        SPLIT --> CORPUS
+        SPLIT --> HOLDOUT
+        CORPUS --> EMBED_BATCH
+        EMBED_BATCH --> PG
+    end
+
+    subgraph ONLINE["Online estimation (Backlog)"]
+        direction TB
+        USER([User])
+        TICKET["Ticket page<br/>user_tickets.json"]
+        BACKLOG["Backlog page<br/>app.py"]
+        EST["estimator.py"]
+        QUERY_EMBED["Embed query description<br/>embedding.py"]
+        SEARCH["find_similar_tickets<br/>similarity_search.py"]
+        DECIDE{Neighbours<br/>found?}
+        RAG_SP["compute_rag_story_points<br/>weighted avg → Fibonacci"]
+        LLM_EXPLAIN["LLM: explain fixed SP<br/>confidence, subtasks"]
+        LLM_FULL["LLM: estimate SP + reasoning<br/>low confidence cap"]
+        RESULT["Estimate card<br/>SP, confidence, reasoning,<br/>similar tickets, source"]
+        SESSION[(Session state<br/>not persisted)]
+
+        USER -->|Create ticket| TICKET
+        USER -->|Select + Estimate| BACKLOG
+        TICKET --> BACKLOG
+        BACKLOG --> EST
+        EST --> QUERY_EMBED
+        QUERY_EMBED --> SEARCH
+        PG -.->|cosine NN lookup| SEARCH
+        SEARCH --> DECIDE
+
+        DECIDE -->|Yes| RAG_SP
+        RAG_SP --> LLM_EXPLAIN
+        LLM_EXPLAIN --> RESULT
+
+        DECIDE -->|No| LLM_FULL
+        LLM_FULL --> RESULT
+
+        RESULT --> SESSION
+        SESSION --> USER
+    end
+
+    OFFLINE -.->|enables retrieval| ONLINE
+```
+
 ### Estimation sequence (detailed)
 
 When a user clicks **Estimate Effort** on the Backlog page, the app runs a RAG-first
