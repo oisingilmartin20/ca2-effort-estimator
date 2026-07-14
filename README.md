@@ -55,7 +55,44 @@ via the header links at the top of each page; the Streamlit sidebar is hidden.
 
 ## Architecture
 
-### Estimation sequence
+### High-level workflow
+
+At a high level, the user interacts with the **UI** (Streamlit), which delegates
+estimation to the **RAG** pipeline. RAG queries the vector **DB** for similar TAWOS
+tickets, computes story points when neighbours exist, and calls the **LLM** for
+explanation. The detailed file-level sequence follows below.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant RAG
+    participant DB
+    participant LLM
+
+    User->>UI: Create ticket
+    UI->>UI: Save to backlog
+
+    User->>UI: Select ticket and request estimate
+    UI->>RAG: Send ticket details
+
+    RAG->>DB: Search similar past tickets
+    DB-->>RAG: Nearest neighbours with story points
+
+    alt Similar tickets found
+        RAG->>RAG: Compute story points from neighbours
+        RAG->>LLM: Request explanation and confidence
+        LLM-->>RAG: Reasoning and optional subtasks
+    else No similar tickets
+        RAG->>LLM: Estimate from ticket details only
+        LLM-->>RAG: Story points, reasoning, low confidence
+    end
+
+    RAG-->>UI: Estimate result
+    UI-->>User: Show story points, confidence, and reasoning
+```
+
+### Estimation sequence (detailed)
 
 When a user clicks **Estimate Effort** on the Backlog page, the app runs a RAG-first
 estimation pipeline: embed the ticket description, retrieve similar TAWOS tickets from
