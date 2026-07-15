@@ -364,12 +364,12 @@ Input
 A results.csv file which contains 105 sample Jira tickets from the dataset, with actual story points from the source dataset and predicted points from the LLM included.
 
 ### What it computes
-MAE (Mean Absolute Error) — average point gap between prediction and actual
-RMSE (Root Mean Squared Error) — penalises large misses more heavily
-MMRE (Mean Magnitude of Relative Error) — average error as a proportion of the actual value
-PRED(25) / PRED(50) = Proportion of predictions within 25% / 50% of the actual value
-Exact match rate = Proportion where prediction equals actual exactly
-Spearman ρ - Rank correlation between predictions and actuals (with p-value)
+MAE (Mean Absolute Error) — average point gap between prediction and actual  
+RMSE (Root Mean Squared Error) — penalises large misses more heavily  
+MMRE (Mean Magnitude of Relative Error) — average error as a proportion of the actual value  
+PRED(25) / PRED(50) = Proportion of predictions within 25% / 50% of the actual value  
+Exact match rate = Proportion where prediction equals actual exactly  
+Spearman ρ - Rank correlation between predictions and actuals (with p-value)  
 
 It also prints the N worst misses (configurable, default 10) sorted by absolute error, so you can inspect which ticket types the LLM struggled with most.
 
