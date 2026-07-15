@@ -355,3 +355,31 @@ only, with **low confidence** and an explicit warning.
 4. Confirm the estimate card shows the RAG baseline line (weighted avg → SP)
 5. With Postgres down or empty description, confirm low-confidence fallback
    and warning when Source shows `+no-retrieval`
+
+
+## RQ1 – LLM Estimate Closeness to Actual Story Points (scripts/rq1_analysis.py)
+Evaluates how closely the LLM's story point predictions match the actual values recorded in TAWOS. It assumes the LLM was prompted to respond directly on the Fibonacci scale (1, 2, 3, 5, 8, 13, 21), so no rounding or snapping is applied to its output.
+
+Input
+A results.csv file which contains 105 sample Jira tickets from the dataset, with actual story points from the source dataset and predicted points from the LLM included.
+
+### What it computes
+MAE (Mean Absolute Error) — average point gap between prediction and actual
+RMSE (Root Mean Squared Error) — penalises large misses more heavily
+MMRE (Mean Magnitude of Relative Error) — average error as a proportion of the actual value
+PRED(25) / PRED(50) = Proportion of predictions within 25% / 50% of the actual value
+Exact match rate = Proportion where prediction equals actual exactly
+Spearman ρ - Rank correlation between predictions and actuals (with p-value)
+
+It also prints the N worst misses (configurable, default 10) sorted by absolute error, so you can inspect which ticket types the LLM struggled with most.
+
+### Fibonacci validation
+Before computing metrics, the script checks that every predicted value is a valid Fibonacci scale point. Off-scale predictions are flagged with a warning listing the affected tickets — they are still included in the metrics, so any drift will show up in the numbers.
+
+### Usage
+
+```bash
+python scripts/rq1_analysis.py --results results.csv --worst-n 10
+```
+
+Both arguments are optional and default to the values above.
