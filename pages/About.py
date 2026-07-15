@@ -13,10 +13,9 @@ st.markdown(
       <h3 style="margin-top:0;">Aim of this tool</h3>
       <p>
         This CA2 prototype supports <b>LLM-assisted agile story point estimation</b>.
-        It lets you browse a Jira-style backlog, generate estimates (story points,
-        confidence, reasoning, and optional subtask breakdown), and compare AI
-        estimates against <b>team-recorded actual story points</b> using the
-        comparison chart on the Backlog page.
+        Create tickets on the <b>Ticket</b> tab, then switch to <b>Backlog</b> to
+        select one and generate estimates (story points, confidence, reasoning, and
+        optional subtask breakdown).
       </p>
     </div>
     """,
@@ -29,15 +28,16 @@ st.markdown(
       <h3 style="margin-top:0;">What this tool uses</h3>
       <ul>
         <li><b>UI</b> — Streamlit with a custom pastel CSS theme</li>
-        <li><b>Data</b> — <code>data/tawos_sample.csv</code> (14 sample tickets
-            across 5 open-source projects from the TAWOS dataset)</li>
-        <li><b>Estimation</b> — <code>estimator.py</code> calls an OpenAI-compatible
-            chat API when <code>OPENAI_API_KEY</code> is set (default model in
-            <code>.env.example</code>: <code>llama-3.3-70b-versatile</code> via Groq)</li>
-        <li><b>Fallback</b> — deterministic keyword/heuristic estimator when no
-            API key is configured or the LLM call fails</li>
-        <li><b>Charts</b> — Altair grouped bar chart (estimated vs actual, faceted
-            by project)</li>
+        <li><b>Backlog</b> — user-created tickets stored in
+            <code>data/user_tickets.json</code></li>
+        <li><b>Estimation</b> — <code>estimator.py</code> computes story points from
+            pgvector neighbours (description similarity), then calls an OpenAI-compatible
+            chat API for reasoning and optional decomposition</li>
+        <li><b>Retrieval</b> — pgvector similarity search over the TAWOS embedding
+            corpus; when no neighbours are found, the LLM estimates alone with
+            low confidence and a clear warning</li>
+        <li><b>Fallback</b> — deterministic keyword/heuristic estimator in
+            <code>estimator.py</code> for offline tests (not used by the Streamlit app)</li>
         <li><b>Scale</b> — Fibonacci story points: 1, 2, 3, 5, 8, 13, 21</li>
       </ul>
     </div>
@@ -52,14 +52,13 @@ st.markdown(
       <ul>
         <li>The model is <b>not fine-tuned</b> on TAWOS or any project data in
             this repository.</li>
-        <li>TAWOS sample tickets are used as a <b>demonstration and evaluation
-            dataset</b> only — they provide real historical team estimates
-            (<code>actual_story_points</code>) for comparison.</li>
+        <li>TAWOS data is used for <b>vector retrieval context</b> during estimation
+            and for offline dataset analytics — it is not loaded as the app backlog.</li>
         <li>At inference time, only the <b>selected ticket's title and
             description</b> are sent to the LLM API. This tool does not perform
             batch training or model weight updates.</li>
-        <li>Session estimates are stored in <b>browser session state only</b> and
-            are not written to disk.</li>
+        <li>User tickets are persisted in <code>data/user_tickets.json</code>.
+            Session estimates are stored in <b>browser session state only</b>.</li>
         <li>If no API key is configured, the heuristic fallback runs entirely
             <b>offline</b> with no external data transfer.</li>
       </ul>

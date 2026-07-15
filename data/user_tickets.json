@@ -1,0 +1,23 @@
+[
+  {
+    "issue_key": "TKT-001",
+    "project": "Lsstcorp Data management",
+    "issue_type": "Story",
+    "title": "Migrate legacy DAX services to new clusters",
+    "description": "We need to get SODA and metaserv and maybe image serve running in the new clusters. Now that we've agreed to new namespaces, I also need to fix that. There are also unused PVs in places that need to be cleaned up."
+  },
+  {
+    "issue_key": "TKT-002",
+    "project": "Appcelerator Studio",
+    "issue_type": "Story",
+    "title": "Tiapp: surface errors/warnings in Overview Editor to Problem view and as project file decorators",
+    "description": "Steps to Reproduce: 1. Create a new project from tiDev 2. Import the project to tiStudio 3. open tiapp.xml Actual: there are errors that the user need to resolve, but they do not see that indication until file is open Expected: To indicate to the user that there is an error on the project when they import"
+  },
+  {
+    "issue_key": "TKT-003",
+    "project": "Alloy Framework",
+    "issue_type": "Task",
+    "title": "CLI: ti clean should remove/empty Resources for Alloy projects",
+    "description": "h4. Problem Description \u2014 With the Alloy compiler trying to become smarter in compiling only those files that are changed, it happens more often that for different reasons the Resources directory is not up-to-date anymore. For this reason I'd like to see the Resources folder emptied or removed with ti clean and the Studio options using this CLI command. This way I can instruct people to do a clean as a first attempt to resolve compile/build problems."
+  }
+]

@@ -7,7 +7,7 @@ from typing import Literal
 
 import streamlit as st
 
-PageId = Literal["backlog", "about"]
+PageId = Literal["ticket", "backlog", "about"]
 
 LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "logo.jpg"
 
@@ -176,6 +176,11 @@ def inject_theme() -> None:
           .pill-bug   { background: var(--color-4); color: var(--jira-text); }
           .pill-task  { background: var(--color-1); color: var(--jira-text); }
           .pill-epic  { background: var(--color-3); color: var(--jira-text); }
+          .pill-improvement { background: var(--color-5); color: var(--jira-text); }
+          .pill-new-feature { background: var(--color-2); color: var(--jira-text); }
+          .pill-suggestion  { background: var(--color-4); color: var(--jira-text); }
+          .pill-enhancement { background: var(--color-1); color: var(--jira-text); }
+          .pill-technical   { background: var(--color-3); color: var(--jira-text); }
           .detail-card {
             background: var(--jira-card);
             border: 1px solid var(--jira-border);
@@ -207,13 +212,17 @@ def inject_theme() -> None:
             padding: 10px 12px;
             margin-top: 6px;
           }
-          .stButton button {
+          .stButton button,
+          .stFormSubmitButton button,
+          div[data-testid="stFormSubmitButton"] button {
             background: var(--color-2);
             color: var(--jira-text);
             border: none;
             font-weight: 600;
           }
-          .stButton button:hover {
+          .stButton button:hover,
+          .stFormSubmitButton button:hover,
+          div[data-testid="stFormSubmitButton"] button:hover {
             background: var(--color-2-dark);
             color: var(--jira-text);
           }
@@ -247,13 +256,20 @@ def render_page_header() -> None:
 
 
 def render_nav(active: PageId) -> None:
-    if active == "backlog":
-        backlog = '<span class="nav-btn nav-active">Backlog</span>'
-        about = '<a class="nav-btn" href="/About" target="_self">About</a>'
-    else:
-        backlog = '<a class="nav-btn" href="/" target="_self">Backlog</a>'
-        about = '<span class="nav-btn nav-active">About</span>'
+    pages = [
+        ("ticket", "Ticket", "/Ticket"),
+        ("backlog", "Backlog", "/"),
+        ("about", "About", "/About"),
+    ]
+    buttons = []
+    for page_id, label, href in pages:
+        if active == page_id:
+            buttons.append(f'<span class="nav-btn nav-active">{label}</span>')
+        else:
+            buttons.append(
+                f'<a class="nav-btn" href="{href}" target="_self">{label}</a>'
+            )
     st.markdown(
-        f'<div class="nav-row">{backlog}{about}</div>',
+        f'<div class="nav-row">{"".join(buttons)}</div>',
         unsafe_allow_html=True,
     )
