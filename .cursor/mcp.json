@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "tawos-similarity": {
+      "command": "python",
+      "args": ["mcp/tawos_similarity_server.py"],
+      "env": {
+        "POSTGRES_URL": "postgresql+psycopg://tawos:tawos@localhost:5432/tawos_vectors",
+        "EMBEDDING_PROVIDER": "local",
+        "EMBEDDING_MODEL": "all-MiniLM-L6-v2",
+        "EMBEDDING_DIMENSION": "384"
+      }
+    }
+  }
+}
