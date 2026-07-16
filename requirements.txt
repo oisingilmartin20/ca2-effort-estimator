@@ -6,7 +6,7 @@ altair>=5.0
 sqlalchemy>=2.0
 pymysql>=1.1
 jupyterlab>=4.0
-ipykernel>=6.0
+ipykernel>=7.3.0
 matplotlib>=3.8
 seaborn>=0.13
 fastmcp
