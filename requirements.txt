@@ -1,6 +1,6 @@
 streamlit>=1.30
 pandas>=2.0
-python-dotenv>=1.0
+python-dotenv>=1.2.2
 openai>=1.40
 altair>=5.0
 sqlalchemy>=2.0
