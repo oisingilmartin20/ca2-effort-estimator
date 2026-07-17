@@ -11,7 +11,7 @@ VALID_LABELS = {"grounded", "inferred", "hallucinated"}
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--review", type=Path, default=Path("evaluation/hallucination_review.csv"))
+    parser.add_argument("--review", type=Path, default=Path("evaluation/hallucination_review_labeled.csv"))
     args = parser.parse_args()
 
     df = pd.read_csv(args.review)
