@@ -11,6 +11,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -69,7 +70,9 @@ def main() -> None:
     api_key = os.getenv("OPENAI_API_KEY", "lm-studio")
     base_url = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1")
     model = os.getenv("ESTIMATOR_MODEL", "olmo-3-7b-instruct")
-    if "api.groq.com" in (base_url or "").lower():
+    parsed_base_url = urlparse(base_url or "")
+    base_hostname = (parsed_base_url.hostname or "").lower()
+    if base_hostname == "api.groq.com" or base_hostname.endswith(".api.groq.com"):
         print("Refusing Groq endpoint.", file=sys.stderr)
         sys.exit(1)
 
