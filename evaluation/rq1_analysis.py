@@ -67,7 +67,7 @@ def worst_misses(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", type=Path, default=Path("results.csv"))
+    parser.add_argument("--results", type=Path, default=Path("evaluation/results_rag.csv"))
     parser.add_argument("--worst-n",  type=int,  default=10)
     args = parser.parse_args()
 

@@ -176,12 +176,77 @@ def _ticket_kwargs(ticket: dict) -> dict[str, str]:
     }
 
 
+def _repair_json_text(text: str) -> str:
+    """Best-effort cleanup for common local-LLM JSON glitches."""
+    cleaned = text.strip()
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+    cleaned = cleaned.replace("\u201c", '"').replace("\u201d", '"')
+    cleaned = cleaned.replace("\u2018", "'").replace("\u2019", "'")
+    cleaned = re.sub(r"\bTrue\b", "true", cleaned)
+    cleaned = re.sub(r"\bFalse\b", "false", cleaned)
+    cleaned = re.sub(r"\bNone\b", "null", cleaned)
+    # Single-quoted keys/strings → double quotes (common local-LLM slip)
+    cleaned = re.sub(r"'([^'\\]*)'", r'"\1"', cleaned)
+    return cleaned
+
+
+def _balanced_json_object(raw: str) -> str | None:
+    start = raw.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(raw)):
+        ch = raw[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return raw[start : i + 1]
+    return None
+
+
 def _extract_json(raw: str) -> dict:
     """Pull the first JSON object out of an LLM response."""
+    candidates: list[str] = []
+    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    if fence:
+        candidates.append(fence.group(1))
+    balanced = _balanced_json_object(raw)
+    if balanced:
+        candidates.append(balanced)
     match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not match:
-        raise ValueError("No JSON object found in LLM response")
-    return json.loads(match.group(0))
+    if match:
+        candidates.append(match.group(0))
+    candidates.append(raw)
+
+    errors: list[str] = []
+    for candidate in candidates:
+        for variant in (candidate, _repair_json_text(candidate)):
+            try:
+                parsed = json.loads(variant)
+            except json.JSONDecodeError as exc:
+                errors.append(str(exc))
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+
+    raise ValueError(
+        "No JSON object found in LLM response: "
+        + (errors[-1] if errors else "empty")
+    )
 
 
 def _parse_subtasks(payload: dict) -> list[Subtask]:
@@ -193,6 +258,7 @@ def _parse_subtasks(payload: dict) -> list[Subtask]:
             reasoning=str(s.get("reasoning", "")).strip(),
         )
         for s in subtasks_raw
+        if isinstance(s, dict)
     ]
 
 
@@ -202,22 +268,36 @@ def _call_llm(
     model: str,
     api_key: str,
     base_url: Optional[str],
+    *,
+    max_attempts: int = 3,
 ) -> dict:
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url \
         else OpenAI(api_key=api_key)
 
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.2,
-    )
-    raw = resp.choices[0].message.content or "{}"
-    return _extract_json(raw)
+    last_error: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2 if attempt == 1 else 0.0,
+        )
+        raw = resp.choices[0].message.content or "{}"
+        try:
+            return _extract_json(raw)
+        except (ValueError, json.JSONDecodeError) as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                user_prompt = (
+                    user_prompt
+                    + "\n\nIMPORTANT: Reply with a single valid JSON object only. "
+                    "No markdown fences, no trailing commas, no commentary."
+                )
+    raise ValueError(f"LLM JSON parse failed after {max_attempts} attempts: {last_error}")
 
 
 def _heuristic_estimate(ticket: dict) -> Estimate:
@@ -345,13 +425,28 @@ def _fetch_similar_tickets(description: str) -> list[SimilarTicket]:
         return []
 
 
-def estimate_ticket(ticket: dict) -> Estimate:
+def _reject_groq_endpoint(base_url: Optional[str]) -> None:
+    if base_url and "api.groq.com" in base_url.lower():
+        raise ValueError(
+            "Groq endpoints are disabled for this project. "
+            "Point OPENAI_BASE_URL at local LM Studio "
+            "(e.g. http://127.0.0.1:1234/v1) and set "
+            "ESTIMATOR_MODEL=olmo-3-7b-instruct."
+        )
+
+
+def estimate_ticket(ticket: dict, *, use_rag: bool = True) -> Estimate:
     api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("ESTIMATOR_MODEL", "gpt-4o-mini")
+    model = os.getenv("ESTIMATOR_MODEL", "olmo-3-7b-instruct")
     base_url = os.getenv("OPENAI_BASE_URL") or None
 
     if not api_key:
         raise ValueError("A valid LLM API key is required")
+
+    _reject_groq_endpoint(base_url)
+
+    if not use_rag:
+        return _llm_estimate_without_rag(ticket, model, api_key, base_url)
 
     similar_tickets = _fetch_similar_tickets(ticket.get("description", ""))
 

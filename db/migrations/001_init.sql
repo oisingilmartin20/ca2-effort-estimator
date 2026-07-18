@@ -6,7 +6,7 @@ CREATE TABLE ticket_embeddings (
   title           TEXT,
   description     TEXT NOT NULL,
   story_points    INTEGER NOT NULL,
-  embedding       vector,
+  embedding       vector(384),
   embedding_model VARCHAR(128) NOT NULL,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );

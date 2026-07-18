@@ -1,0 +1,25 @@
+Fibonacci validation: all predictions are valid scale values.
+
+=== RQ1: LLM estimate closeness to actual story points ===
+
+Total tickets evaluated:  80
+MAE:                      4.51 points
+RMSE:                     6.16 points
+MMRE:                     1.36
+PRED(25):                 18.8%
+PRED(50):                 32.5%
+Exact match rate:         18.8%
+Spearman rho:             0.46  (p=0.000)
+
+=== 10 worst misses ===
+  issue_key  actual_story_points  predicted_story_points  abs_error
+  MXNET-475                    2                      21         19
+    DM-1878                   21                       5         16
+  MULE-7003                   21                       8         13
+   DM-10086                   21                       8         13
+TIMOB-20272                   21                       8         13
+    DM-3488                    1                      13         12
+   DM-13817                    2                      13         11
+   DM-20495                   13                       2         11
+    XD-2905                    2                      13         11
+TIMOB-26648                    3                      13         10

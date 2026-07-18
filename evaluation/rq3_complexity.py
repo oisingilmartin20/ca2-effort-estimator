@@ -43,7 +43,7 @@ def reconciliation_gap(df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", type=Path, default=Path("evaluation/results.csv"))
+    parser.add_argument("--results", type=Path, default=Path("evaluation/results_rag.csv"))
     parser.add_argument("--threshold", type=int, default=COMPLEX_THRESHOLD)
     args = parser.parse_args()
 

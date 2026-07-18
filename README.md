@@ -11,12 +11,13 @@ cd ca2-effort-estimator
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env   # then fill in OPENAI_API_KEY if you have one
+copy .env.example .env   # defaults to local Olmo via LM Studio
 streamlit run app.py
 ```
 
-The app runs without an API key - it falls back to a deterministic heuristic
-estimator so the UI is fully demoable offline.
+Copy `.env.example` to `.env`. The recommended setup is local LM Studio with
+`ESTIMATOR_MODEL=olmo-3-7b-instruct` (see `.env.example`). Cloud Groq endpoints
+are rejected by the estimator so evaluation stays offline-capable.
 
 ## Layout
 
@@ -32,6 +33,8 @@ estimator so the UI is fully demoable offline.
 - `data/tawos_with_story_points.csv` - full export of tickets with positive story points
 - `data/tawos_balanced_train.csv` - balanced ~20% training subset (Fibonacci labels)
 - `data/tawos_balanced_train_with_zero.csv` - balanced ~20% training subset including zero-point tickets
+- `data/tawos_retrieval_corpus.csv` - 80% retrieval corpus (embedded into Postgres)
+- `data/tawos_train_holdout.csv` - 20% holdout for fair RAG evaluation (not embedded)
 - `scripts/analyze_tawos.py` - CLI summary stats for the full TAWOS MySQL dataset
 - `scripts/export_tawos_training_data.py` - export training CSVs from MySQL
 - `scripts/create_train_retrieval_split.py` - 80/20 retrieval corpus vs training holdout split
@@ -213,8 +216,17 @@ LLM estimates SP from ticket details only, with capped confidence and a UI warni
 
 ## Swapping the model provider
 
-Set `OPENAI_BASE_URL` in `.env` to point at any OpenAI-compatible endpoint
-(local Ollama, Together, Groq, etc.) and `ESTIMATOR_MODEL` to the model id.
+Course evaluations use **local Olmo via LM Studio**:
+
+```bash
+OPENAI_API_KEY=lm-studio
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+ESTIMATOR_MODEL=olmo-3-7b-instruct
+```
+
+`estimator.py` rejects `api.groq.com` so RQ runs cannot silently hit a cloud
+provider. Other OpenAI-compatible local endpoints (e.g. Ollama) can be used by
+changing `OPENAI_BASE_URL` and `ESTIMATOR_MODEL`.
 
 ## TAWOS dataset (scripts and retrieval only)
 
@@ -357,11 +369,13 @@ only, with **low confidence** and an explicit warning.
    and warning when Source shows `+no-retrieval`
 
 
-## RQ1 – LLM Estimate Closeness to Actual Story Points (scripts/rq1_analysis.py)
-Evaluates how closely the LLM's story point predictions match the actual values recorded in TAWOS. It assumes the LLM was prompted to respond directly on the Fibonacci scale (1, 2, 3, 5, 8, 13, 21), so no rounding or snapping is applied to its output.
+## RQ1 – Estimate closeness to actual story points (evaluation/rq1_analysis.py)
 
-Input
-A results.csv file which contains 105 sample Jira tickets from the dataset, with actual story points from the source dataset and predicted points from the LLM included.
+Evaluates how closely the **RAG estimator** (local `olmo-3-7b-instruct`) matches
+TAWOS story points on the **training holdout** sample
+(`evaluation/results_rag.csv`, stratified from `data/tawos_train_holdout.csv`).
+
+Earlier Groq / prompt-only runs are not comparable and are discarded as baselines.
 
 ### What it computes
 MAE (Mean Absolute Error) — average point gap between prediction and actual  
@@ -371,7 +385,7 @@ PRED(25) / PRED(50) = Proportion of predictions within 25% / 50% of the actual v
 Exact match rate = Proportion where prediction equals actual exactly  
 Spearman ρ - Rank correlation between predictions and actuals (with p-value)  
 
-It also prints the N worst misses (configurable, default 10) sorted by absolute error, so you can inspect which ticket types the LLM struggled with most.
+It also prints the N worst misses (configurable, default 10) sorted by absolute error.
 
 ### Fibonacci validation
 Before computing metrics, the script checks that every predicted value is a valid Fibonacci scale point. Off-scale predictions are flagged with a warning listing the affected tickets — they are still included in the metrics, so any drift will show up in the numbers.
@@ -379,7 +393,98 @@ Before computing metrics, the script checks that every predicted value is a vali
 ### Usage
 
 ```bash
-python scripts/rq1_analysis.py --results results.csv --worst-n 10
+python evaluation/rq1_analysis.py --results evaluation/results_rag.csv --worst-n 10
 ```
 
 Both arguments are optional and default to the values above.
+
+## RQ2 – RAG-on vs RAG-off and Justification Faithfulness
+
+Evaluates the **primary RAG estimator** on holdout tickets (retrieval from the
+embedded corpus), compares it to a forced **LLM-only** ablation on the same
+sample, and scores how faithfully the LLM justification cites neighbours.
+
+### Prerequisites
+
+- Postgres up with embeddings loaded (`docker compose up -d`, then
+  `python scripts/generate_embeddings.py`)
+- Local LM Studio with `olmo-3-7b-instruct` and `.env` as above
+  (`OPENAI_BASE_URL` must not point at Groq)
+
+### 1. Batch runs (same stratified holdout sample)
+
+```bash
+# RAG on (primary) — default --data is data/tawos_train_holdout.csv
+python evaluation/run_estimator.py --out evaluation/results_rag.csv
+
+# RAG off (fallback baseline) — same tickets, no retrieval
+python evaluation/run_estimator.py --no-rag --out evaluation/results_norag.csv
+```
+
+Use the same `--per-class` and `--seed` for both runs so `issue_key`s align.
+Confirm every `source` value contains `olmo-3-7b-instruct`.
+
+### 2. Ablation metrics
+
+```bash
+python evaluation/rq2_rag_ablation.py \
+  --rag evaluation/results_rag.csv \
+  --norag evaluation/results_norag.csv
+```
+
+Prints side-by-side RQ1-style error metrics, paired win rate (RAG closer vs
+no-RAG), retrieval stats (neighbour coverage, similarities, SP spread,
+same-project-key rate), and MAE by RAG confidence band.
+
+### 3. Justification review
+
+```bash
+python evaluation/rq2_prepare_justification.py --results evaluation/results_rag.csv
+# Open evaluation/justification_review.csv and score each rubric column 0 or 1:
+#   grounded, faithful_to_rag, comparative, no_hallucination, useful
+python evaluation/rq2_justification.py --review evaluation/justification_review.csv
+```
+
+Automatic checks (no labels needed): cites at least one retrieved issue key,
+does not invent keys, and does not contradict the fixed story-point estimate.
+Human rates are reported once the rubric columns are filled.
+
+## RQ3 – Complexity detection (evaluation/rq3_complexity.py)
+
+Treats `actual_story_points >= 8` as ground-truth “should decompose”, and
+compares that to the estimator’s `complex_flag`. Also reports the gap between
+subtask point sums and the top-level estimate.
+
+```bash
+python evaluation/rq3_complexity.py --results evaluation/results_rag.csv
+```
+
+## RQ4 – Subtask hallucination rate (evaluation/rq4_*.py)
+
+1. Expand complex-ticket subtasks into a labeling sheet:
+
+```bash
+python evaluation/rq4_prepare_review.py \
+  --results evaluation/results_rag.csv \
+  --out evaluation/hallucination_review_rag.csv
+```
+
+2. Label each row `grounded` / `inferred` / `hallucinated`
+   (optionally assisted by local Olmo via `evaluation/label_hallucinations_olmo.py`),
+   save as `evaluation/hallucination_review_rag_labeled.csv`.
+
+3. Crunch rates:
+
+```bash
+python evaluation/rq4_hallucination.py \
+  --review evaluation/hallucination_review_rag_labeled.csv
+```
+
+### Evaluation conventions
+
+| Setting | Value |
+| --- | --- |
+| LLM | local `olmo-3-7b-instruct` via LM Studio |
+| Sample | stratified holdout (`tawos_train_holdout.csv`), zero overlap with embedded corpus |
+| Embeddings | local `all-MiniLM-L6-v2`, Postgres `vector(384)` |
+| Primary results | `evaluation/results_rag.csv` (also copied to `results.csv`) |
