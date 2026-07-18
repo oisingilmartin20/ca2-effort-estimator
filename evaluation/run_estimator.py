@@ -13,7 +13,10 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from estimator import estimate_ticket
 
-DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "tawos_balanced_train.csv"
+# Must be the holdout split, not tawos_balanced_train.csv - the RAG vector
+# store is built from tawos_retrieval_corpus.csv, and sampling from a set
+# that overlaps it lets tickets retrieve themselves as their own neighbour.
+DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "tawos_train_holdout.csv"
 
 FIELDNAMES = [
     "issue_key", "project", "issue_type", "title", "description",
