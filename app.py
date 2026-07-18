@@ -74,10 +74,17 @@ else:
         run = st.button("Estimate Effort", use_container_width=True)
 
     if run:
+        base_url = (os.getenv("OPENAI_BASE_URL") or "").lower()
         if not os.getenv("OPENAI_API_KEY"):
             st.error("A valid LLM API key is required. Set OPENAI_API_KEY in .env.")
         elif not os.getenv("ESTIMATOR_MODEL"):
             st.error("Set ESTIMATOR_MODEL in .env (e.g. olmo-3-7b-instruct).")
+        elif "api.groq.com" in base_url:
+            st.error(
+                "Groq endpoints are disabled. Set OPENAI_BASE_URL to local "
+                "LM Studio (e.g. http://127.0.0.1:1234/v1) and "
+                "ESTIMATOR_MODEL=olmo-3-7b-instruct."
+            )
         else:
             with st.spinner("Generating estimate..."):
                 try:

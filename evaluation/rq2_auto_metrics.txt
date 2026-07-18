@@ -1,0 +1,11 @@
+=== RQ2: justification faithfulness ===
+
+=== Automatic checks ===
+Total rows:                    80
+Cites >=1 retrieved key:       98.8%  (of 80 rows with neighbours)
+No invented issue keys:        90.0%
+Consistent with fixed SP:      97.5%
+
+Warning: 80 of 80 rows are not fully labeled (expected 0/1 in ['grounded', 'faithful_to_rag', 'comparative', 'no_hallucination', 'useful']). Rates below cover labeled rows only.
+
+No labeled rows yet — fill in the rubric columns first.

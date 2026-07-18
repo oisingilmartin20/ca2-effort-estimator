@@ -1,0 +1,36 @@
+=== RQ2: RAG-on vs RAG-off ablation ===
+
+=== RAG-on (primary) (n=80) ===
+MAE:              4.51
+RMSE:             6.16
+MMRE:             1.36
+PRED(25):         18.8%
+PRED(50):         32.5%
+Exact match:      18.8%
+Spearman rho:     0.46  (p=0.000)
+
+=== RAG-off (fallback baseline) (n=80) ===
+MAE:              4.99
+RMSE:             6.97
+MMRE:             1.17
+PRED(25):         15.0%
+PRED(50):         35.0%
+Exact match:      15.0%
+Spearman rho:     0.25  (p=0.024)
+
+=== Paired comparison (same issue_key) ===
+Paired tickets:           80
+Mean |error| delta (RAG - no-RAG): -0.47  (negative => RAG closer on average)
+% tickets where RAG closer: 36.2%
+
+=== Retrieval stats (RAG run) ===
+% with neighbours:        100.0%
+Mean top-1 similarity:    0.686
+Mean top-k similarity:    0.584
+Mean neighbour SP spread: 12.21
+Mean same-project rate:   78.9%
+
+=== RAG confidence bands (MAE) ===
+High (>=0.70): n=2  MAE=1.50
+Low  (<0.55):  n=72  MAE=4.75
+

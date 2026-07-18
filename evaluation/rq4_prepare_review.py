@@ -33,8 +33,8 @@ def expand_subtasks(df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", type=Path, default=Path("evaluation/results.csv"))
-    parser.add_argument("--out", type=Path, default=Path("evaluation/hallucination_review.csv"))
+    parser.add_argument("--results", type=Path, default=Path("evaluation/results_rag.csv"))
+    parser.add_argument("--out", type=Path, default=Path("evaluation/hallucination_review_rag.csv"))
     args = parser.parse_args()
 
     df = pd.read_csv(args.results)
